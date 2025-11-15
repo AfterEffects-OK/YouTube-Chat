@@ -205,6 +205,7 @@
             background-color: transparent !important; 
             flex-shrink: 0; /* ★追加: メッセージが潰れないようにする */
             
+            cursor: pointer; /* ★追加: クリックできることを示す */
             max-width: 100%; /* ★修正: width: 100% から変更し、内容に追従させる */
             
             /* メッセージ表示時のアニメーションを適用 */
@@ -564,7 +565,7 @@
                 <!-- 1. API/動画設定セクション -->
                 <div class="w-full p-4 bg-gray-800 rounded-lg shadow-xl">
                     <h1 class="text-2xl font-extrabold mb-1 text-blue-400 border-b border-blue-400/50 pb-2">ライブチャット設定</h1>
-                    <p class="text-sm text-gray-400 mb-4">APIキーと動画IDを設定してください。</p>
+                    <p class="text-sm text-gray-400 mb-4">APIキーと動画IDを入力</p>
                     
                     <div class="flex flex-col gap-3 w-full"> 
                         <!-- 入力フィールドのスタイルを改善 (p-3, rounded-lg, bg-gray-700, focus:ring-2) -->
