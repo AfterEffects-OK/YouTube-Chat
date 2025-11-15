@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カスタム YouTube Live Chat Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* フォント設定: 日本語と英語の表示を考慮 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap');
+        
+        /* ----------------------------------------------------- */
+        /* ★CSSカスタムプロパティ (デフォルト値) ★ */
+        /* ----------------------------------------------------- */
+        :root {
+            /* グローバルフォントファミリーのデフォルト */
+            --global-font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            font-family: var(--global-font-family);
+
+            /* ★新規: ピン留めエリアの高さ */
+            --pinned-chat-height: 320px;
+            
+            /* 個別フォントファミリーのカスタムプロパティ（初期値は空） */
+            --author-font-family: ;
+            --message-font-family: ;
+
+            /* 💡 2行表示モードでの名前の左マージン (インデント) */
+            --author-indent-rem: 0rem; 
+            
+            /* 💡 2行表示モードでのメッセージ本文の左マージン (インデント) */
+            --message-indent-rem: 0rem; 
+
+            /* 💡 2行表示モードでの名前とメッセージの間の縦方向のギャップ */
+            --author-message-gap-rem: 0.2rem;
+            
+            /* 💡 メッセージ本文の最大文字数 (ch単位) */
+            --message-max-chars: 80ch; 
+            
+            /* 💡 ユーザー名の垂直位置調整 (px単位) */
+            --author-vertical-offset-px: 0px; 
+            
+            /* ユーザー名 (Author) のデフォルト値 */
+            --author-default-color: #fec834; 
+            --author-default-size: 1.0rem;
+            
+            /* メッセージ本文 (Message) のデフォルト値 */
+            --message-default-color: #e2e8f0;
+            --message-default-size: 1.0rem;
+
+            /* ★新規: ピン留めエリア専用のスタイル */
+            --pinned-author-font-family: ;
+            --pinned-message-font-family: ;
+            --pinned-author-color-override: ;
+            --pinned-author-font-size: ;
+            --pinned-message-color-override: ;
+            --pinned-message-font-size: ;
+        }
+        
+        /* ----------------------------------------------------- */
+        /* ★全体レイアウトのカスタム (横並び) ★ */
+        /* ----------------------------------------------------- */
+        
+        /* body: 常に画面いっぱいに広がり、Flexコンテナとして機能 */
+        body {
+            display: flex;
+            /* 画面が狭い（スマホなど）ときは縦並び */
+            flex-direction: column; 
+            min-height: 100vh;
+            /* ★新規: ピン留めエリアの高さ分、下部に余白を確保 */
+            padding-bottom: var(--pinned-chat-height);
+        }
+
+        /* mdサイズ以上で横並びに切り替え */
+        @media (min-width: 768px) {
+            body {
+                flex-direction: row;
+                height: 100vh; /* 常に画面の高さいっぱいを使う */
+                /* 横並びのときはbodyのpaddingは不要 */
+                padding-bottom: 0; 
+            }
+        }
+        
+        @media (min-width: 768px) {
+            #control-panel-container {
+                width: 360px; /* 固定幅 */
+                height: 100vh;
+            }
+        }
+        
+        /* ★修正: メイン表示エリアのラッパー (チャット + SCストック + ピン留めエリア) */
+        #main-display-wrapper {
+            /* md以上では残り全てのスペースを使う */
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column; /* 上下に要素を配置 */
+        }
+
+        /* ★新規: チャットとSCストックを横に並べるためのラッパー */
+        #chat-and-sc-wrapper {
+            flex-grow: 1; /* 残りの高さをすべて使用 */
+            display: flex;
+            min-height: 0; /* ★追加: flexアイテムが親の高さを超えないようにする */
+        }
+        
+        /* チャット表示エリア */
+        #chat-container {
+            display: flex;
+            /* column-reverseで最新のチャットが下部に表示されます。 */
+            flex-direction: column-reverse; 
+            flex-grow: 1; 
+            align-items: flex-start; /* ★追加: メッセージを左揃えにし、幅を内容に合わせる */
+            min-height: 50vh; /* 狭い画面での最低高さを確保 */
+            overflow-y: auto; /* ★修正: スクロールを有効に戻す */
+            background-color: #1a1a1a; /* ダークな背景色 */
+            padding: 1rem;
+            padding-bottom: 3rem; 
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        @media (min-width: 768px) {
+            #chat-container {
+                /* 変更: チャットは3/4のスペースを占める (SCストックと合わせて) */
+                width: 75%; 
+                height: auto; /* ★修正: 高さを自動に */
+                border-radius: 0; /* 角丸をリセットして画面端に合わせる */
+                flex-grow: 1; /* ★修正: 親の高さに追従 */
+            }
+        }
+
+        /* ★新規: スーパーチャットストックエリア */
+        #superchat-stock-container {
+            display: flex;
+            flex-direction: column; /* SCカードを上から下に積み重ねる */
+            
+            /* 狭い画面ではチャットの下に全幅 */
+            width: 100%;
+            min-height: 30vh;
+            overflow-y: auto;
+            background-color: #0d0d0d; /* 非常にダークな背景 */
+            border-top: 2px solid #ffaa00;
+            
+            /* Padding for the list of SCs */
+            padding: 0.5rem; 
+        }
+
+        @media (min-width: 768px) {
+            #superchat-stock-container {
+                /* 変更: SCストックは1/4のスペースを占める */
+                width: 25%;
+                height: auto; /* ★修正: 高さを自動に */
+                border-top: none;
+                border-left: 2px solid #ffaa00; 
+                flex-grow: 1; /* ★追加: 親の高さに追従させる */
+            }
+        }
+
+        /* スクロールバー非表示（Webkit系） */
+        #chat-container::-webkit-scrollbar,
+        #superchat-stock-container::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* ----------------------------------------------------- */
+        /* ★アニメーション定義★ */
+        /* ----------------------------------------------------- */
+
+        /* 新しいメッセージが表示されるときのアニメーション (フェードイン) */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* スーパーステッカー/スーパーチャットの強調アニメーション */
+        @keyframes highlight {
+            from { opacity: 0.9; }
+            to { opacity: 1; }
+        }
+
+        /* ★新規: ピン留め解除時のアニメーション */
+        @keyframes fadeOutDown {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+        }
+
+        /* 個別メッセージのスタイル */
+        .chat-message {
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem; 
+            margin-bottom: 0.5rem; 
+            border-radius: 6px; 
+            transition: all 0.3s ease;
+            position: relative; 
+            z-index: 10;
+            overflow: hidden; 
+            background-color: transparent !important; 
+            flex-shrink: 0; /* ★追加: メッセージが潰れないようにする */
+            
+            max-width: 100%; /* ★修正: width: 100% から変更し、内容に追従させる */
+            
+            /* メッセージ表示時のアニメーションを適用 */
+            animation: fadeIn 0.5s ease-out; 
+        }
+
+        /* 背景画像/背景色を制御する疑似要素 */
+        .chat-message::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1; 
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: cover;
+            opacity: 1; 
+            transition: opacity 0.3s, background-color 0.3s;
+        }
+
+        /* デフォルトの背景色（画像がない場合） */
+        .chat-message:nth-child(even)::before {
+            background-color: #2a2a2a; 
+        }
+        
+        .chat-message:nth-child(odd)::before {
+            background-color: #242424; 
+        }
+
+        /* 背景画像が設定されたメッセージのスタイル */
+        .chat-message[data-bg-image="true"]::before {
+            background-image: var(--bg-image-url);
+            opacity: 0.7; 
+            background-color: #242424; 
+            background-blend-mode: multiply;
+        }
+
+        /* ----------------------------------------------------- */
+        /* ★レイアウト制御 (1行/2行) ★ */
+        /* ----------------------------------------------------- */
+
+        /* ユーザー名とメッセージのコンテナ (デフォルト: 1行表示) */
+        .message-content-wrapper {
+            display: flex;
+            align-items: flex-start; /* 縦方向の揃えを上端に */
+            flex-direction: row; 
+            min-width: 0;
+        }
+        
+        /* ユーザー名とバッジを囲むコンテナ（1行表示時は横並びの一部） */
+        .author-name-container {
+            display: flex;
+            align-items: center; /* バッジと名前を垂直に中央揃え */
+            flex-shrink: 0; /* 縮まない */
+            margin-right: 0.5rem; /* メッセージとの間隔 */
+            /* 💡 垂直方向の調整を適用 */
+            transform: translateY(var(--author-vertical-offset-px)); 
+        }
+        
+        /* 2行表示モード: メッセージラッパーを縦並びにする */
+        .chat-message.multi-line-mode .message-content-wrapper {
+            flex-direction: column; /* 縦並び */
+            align-items: stretch; /* 内部要素が全幅を使うように */
+        }
+
+        /* 2行表示モード: ユーザー名コンテナのスタイル調整 */
+        .chat-message.multi-line-mode .author-name-container {
+            margin-right: 0;
+            /* 💡 縦方向のギャップを適用 */
+            margin-bottom: var(--author-message-gap-rem); 
+            align-self: flex-start; /* 常に左寄せ */
+            width: 100%; /* 全幅を使用 */
+            /* 💡 名前コンテナのインデントを適用 */
+            margin-left: var(--author-indent-rem, 0rem); 
+        }
+
+        /* 💡 修正点: 2行表示モードではメッセージ本文にも独立したインデントを適用 */
+        .chat-message.multi-line-mode .message-text {
+            flex-grow: 0; 
+            /* 💡 メッセージ本文のインデント変数を適用 */
+            margin-left: var(--message-indent-rem, 0rem); 
+        }
+
+        /* ユーザー名 */
+        .author-name {
+            font-weight: 700;
+            white-space: nowrap; 
+            /* カスタム変数またはデフォルト値を適用 */
+            color: var(--normal-author-color-override, var(--author-default-color)); 
+            font-size: var(--normal-author-font-size, var(--author-default-size));
+            font-family: var(--author-font-family, var(--global-font-family)); 
+        }
+
+        /* テキストメッセージ */
+        .message-text {
+            /* カスタム変数またはデフォルト値を適用 */
+            color: var(--normal-message-color-override, var(--message-default-color)); 
+            min-width: 0; 
+            word-break: break-all; 
+            font-size: var(--normal-message-font-size, var(--message-default-size));
+            font-family: var(--message-font-family, var(--global-font-family));
+            /* 💡 最大文字幅を適用 (ch単位) */
+            max-width: var(--message-max-chars); 
+            /* 1行表示時の調整 */
+            flex-grow: 1; /* 残りのスペースを埋める */
+        }
+
+        /* ★新規: ピン留めエリア内のテキストスタイルを上書き */
+        .pinned-message .author-name {
+            font-family: var(--pinned-author-font-family, var(--author-font-family, var(--global-font-family)));
+            color: var(--pinned-author-color-override, var(--author-color-override, var(--author-default-color)));
+            font-size: var(--pinned-author-font-size, var(--author-font-size, var(--author-default-size)));
+        }
+
+        .pinned-message .message-text {
+            font-family: var(--pinned-message-font-family, var(--message-font-family, var(--global-font-family)));
+            color: var(--pinned-message-color-override, var(--message-color-override, var(--message-default-color)));
+            font-size: var(--pinned-message-font-size, var(--message-font-size, var(--message-default-size)));
+        }
+
+
+        /* ----------------------------------------------------- */
+        /* 特定のチャットタイプやバッジのカスタムデザイン (デフォルト値を上書き) */
+        /* ----------------------------------------------------- */
+
+        /* モデレーターのバッジ */
+        .is-moderator .author-name {
+            /* カスタムカラーがあっても、Modカラーを優先 */
+            color: #58a6ff !important; 
+            text-shadow: 0 0 5px rgba(88, 166, 255, 0.5);
+        }
+        .is-moderator .chat-message {
+            border-left: 4px solid #58a6ff;
+        }
+        
+        /* メンバーシップ */
+        .is-member::before {
+             background-color: #007799 !important;
+        }
+        .is-member .author-name {
+            color: #00e5ff !important; 
+        }
+
+        /* メンバーバッジ（アイコン）のスタイル */
+        .membership-badge {
+            margin-right: 0.5rem;
+            color: #ffd700; 
+        }
+
+        /* ★修正: スーパーチャット (メインエリアにも表示するようにスタイルを復活) */
+        .is-superchat::before {
+            /* 濃い赤/紫系のグラデーションをシミュレート */
+            background: linear-gradient(135deg, #a020f0 0%, #ff4500 100%); 
+            opacity: 0.8 !important; /* 背景画像を適用している場合でも目立たせる */
+            background-color: #ff4500 !important;
+            border-left: 6px solid #ffd700; /* 金色のボーダー */
+        }
+        .is-superchat .author-name {
+            color: #ffd700 !important; /* ユーザー名も金色 */
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+        }
+        .is-superchat .message-text {
+            color: #ffffff !important; 
+            font-weight: 600; /* 本文を強調 */
+        }
+
+
+        /* ----------------------------------------------------- */
+        /* ★新規: SCストックエリア内のメッセージスタイル★ */
+        /* ----------------------------------------------------- */
+
+        /* SCストック内の個別メッセージのスタイル */
+        .sc-stock-message {
+            padding: 0.75rem;
+            margin-bottom: 0.75rem; /* 間隔を広めに */
+            border-radius: 8px;
+            background-color: #3d1717; /* SCを意識した濃い赤背景 */
+            border: 1px solid #ffaa00;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            animation: fadeIn 0.5s ease-out; 
+            overflow: hidden; 
+            word-break: break-word; /* 長いコメントでも確実に折り返す */
+            flex-shrink: 0; /* ★追加: メッセージが潰れないようにする */
+        }
+
+        .sc-stock-message .sc-author {
+            font-weight: 700;
+            color: #ffffff; /* 名前は白固定 */
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+
+        .sc-stock-message .sc-amount {
+            font-weight: 800;
+            color: #ffcc00; /* 金額は黄色 */
+            font-size: 1.1rem;
+            display: block;
+            /* 垂直方向の調整 */
+            transform: translateY(1px);
+        }
+        
+        .sc-stock-message .sc-comment {
+            font-size: 0.85rem;
+            color: #e0e0e0;
+            margin-top: 0.5rem;
+        }
+
+        /* ----------------------------------------------------- */
+        /* ★新規: ピン留めチャットエリアのスタイル★ */
+        /* ----------------------------------------------------- */
+        #pinned-chat-container {
+            /* ★修正: position:fixed をやめて通常のFlexアイテムにする */
+            flex-shrink: 0; /* 高さが縮まないようにする */
+            height: var(--pinned-chat-height);
+            background-color: rgba(10, 10, 10, 0.85); /* 少し透明な黒 */
+            backdrop-filter: blur(8px); /* 背景をぼかす */
+            border-top: 2px solid #4a5568;
+            padding: 0.75rem;
+            display: flex; 
+            flex-direction: column-reverse; /* 新しいピンが下から上に積まれる */
+            gap: 0.5rem;
+            overflow-y: hidden; /* 縦スクロールはさせない */
+            width: 100%;
+        }
+
+        /* ピン留めされたチャットメッセージのスタイル調整 */
+        .pinned-message {
+            cursor: pointer; /* ピン留め解除ができることを示す */
+            border-left: 4px solid #f59e0b; /* オレンジ色のボーダーで強調 */
+            /* ★新規: ピン留めエリア内で高さが潰れないように */
+            flex-shrink: 0;
+            width: 100%; /* ★追加: 内容に関わらず幅を100%にする */
+        }
+
+        /* ★新規: ピン留めされたチャットの本文は文字数制限を解除 */
+        .pinned-message .message-text {
+            max-width: none;
+        }
+
+        /* ★新規: ピン留め解除中のスタイル */
+        .pinned-message.hiding {
+            animation: fadeOutDown 0.4s ease-in forwards;
+        }
+
+        /* ★新規: ピン留めアイコンのスタイル */
+        .pin-icon {
+            margin-right: 0.4rem;
+            color: #f59e0b; /* ピンのボーダー色と合わせる */
+            cursor: pointer; /* ★追加: クリックできることを示す */
+        }
+
+        /* ----------------------------------------------------- */
+        /* ★新規: トースト通知のスタイル★ */
+        /* ----------------------------------------------------- */
+        #toast-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toast-message {
+            background-color: rgba(30, 41, 59, 0.9); /* bg-slate-800/90 */
+            backdrop-filter: blur(4px);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem; /* rounded-lg */
+            border-left: 4px solid #38bdf8; /* border-sky-400 */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toast-in 0.4s ease-out forwards;
+            min-width: 250px;
+            max-width: 400px;
+        }
+        .toast-message.hiding {
+            animation: toast-out 0.4s ease-in forwards;
+        }
+
+        /* ★新規: トーストアニメーション */
+        @keyframes toast-in {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+
+        /* ----------------------------------------------------- */
+        /* ★新規: アコーディオンUIのスタイル★ */
+        /* ----------------------------------------------------- */
+        .accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 0.75rem;
+            font-weight: 600;
+            text-align: left;
+            background-color: #374151; /* bg-gray-700 */
+            color: #d1d5db; /* text-gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            transition: background-color 0.2s ease-in-out;
+        }
+        .accordion-header:hover {
+            background-color: #4b5563; /* bg-gray-600 */
+        }
+        .accordion-header.active {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .accordion-header .icon::before {
+            content: '▼';
+            display: inline-block;
+            transition: transform 0.3s ease;
+            font-size: 0.8em;
+        }
+        .accordion-header.active .icon::before {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out;
+            background-color: #1f2937; /* bg-gray-800 */
+            border-bottom-left-radius: 0.5rem;
+            border-bottom-right-radius: 0.5rem;
+            padding: 0 1rem;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-800 text-white">
+
+    <!-- 制御パネルコンテナ (左側/上部) -->
+    <div id="control-panel-container" class="bg-gray-900 md:h-screen md:sticky md:top-0 p-4">
+        <!-- ★修正: 全体を囲むflexコンテナを追加 -->
+        <div class="flex flex-col h-full gap-4">
+            <div>
+                <!-- 1. API/動画設定セクション -->
+                <div class="w-full p-4 bg-gray-800 rounded-lg shadow-xl">
+                    <h1 class="text-2xl font-extrabold mb-1 text-blue-400 border-b border-blue-400/50 pb-2">ライブチャット設定</h1>
+                    <p class="text-sm text-gray-400 mb-4">APIキーと動画IDを設定してください。</p>
+                    
+                    <div class="flex flex-col gap-3 w-full"> 
+                        <!-- 入力フィールドのスタイルを改善 (p-3, rounded-lg, bg-gray-700, focus:ring-2) -->
+                        <input type="text" id="api-key" placeholder="YouTube API Key" class="p-3 border border-gray-600 rounded-lg bg-gray-700 text-white w-full focus:ring-2 focus:ring-blue-500" value="">
+                        <input type="text" id="video-id" placeholder="YouTube Video ID or URL" class="p-3 border border-gray-600 rounded-lg bg-gray-700 text-white w-full focus:ring-2 focus:ring-blue-500" value="">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. デザインカスタム設定セクション (flex-growで高さを確保) -->
+            <div class="w-full flex-grow p-4 bg-gray-800 rounded-lg shadow-xl overflow-y-auto min-h-0">
+                <div>
+                    <h2 class="text-xl font-bold mb-4 text-blue-300 border-b border-gray-600 pb-2">デザインカスタム</h2>
+                    
+                    <!-- ★修正: アコーディオンUIのコンテナに変更 -->
+                    <div id="accordion-container" class="flex flex-col gap-3">
+                        
+                        <!-- グループ: 背景画像設定 (新しいグループ) -->
+                        <div class="accordion-item">
+                            <button class="accordion-header"><h3>背景画像</h3><span class="icon"></span></button>
+                            <div class="accordion-content">
+                                <div class="py-4">
+                                    <input type="text" id="background-image-url" placeholder="背景画像URL (GIF/PNG/JPG) (オプション)" class="p-3 border border-gray-600 rounded-lg bg-gray-700 text-white w-full focus:ring-2 focus:ring-blue-500" value="">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- グループ: レイアウト設定 -->
+                        <div class="accordion-item">
+                            <button class="accordion-header"><h3>レイアウト</h3><span class="icon"></span></button>
+                            <div class="accordion-content">
+                                <div class="py-4 flex flex-col gap-4">
+                        <!-- 1行あたりの文字数設定 -->
+                        <div class="flex flex-col gap-2 mb-3">
+                            <label class="w-full text-sm font-medium text-gray-300 mb-1">
+                                チャット本文の最大文字数 (1行): <span id="char-limit-display" class="font-mono text-blue-300">80文字</span>
+                            </label>
+                            <!-- スライダー: min=20文字, max=120文字, step=1文字 -->
+                            <input type="range" id="char-limit-range" min="20" max="120" step="1" value="80" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- 表示行数設定 (常に縦並び) -->
+                        <div class="flex flex-col gap-2 mb-3">
+                            <label class="w-full text-sm font-medium text-gray-300 mb-1">表示行数:</label>
+                            <select id="chat-display-mode" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
+                                <option value="single">1行表示 (名前と本文が横並び)</option>
+                                <option value="multi" selected>2行表示 (名前と本文が縦並び)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 💡 名前と本文の上下の間隔設定 -->
+                        <div class="flex flex-col gap-2 mb-3">
+                            <label class="w-full text-sm font-medium text-gray-300 mb-1">
+                                名前と本文の上下の間隔: <span id="gap-display" class="font-mono text-blue-300">0.2rem</span>
+                            </label>
+                            <!-- スライダー: min=0rem, max=2.0rem, step=0.1rem -->
+                            <input type="range" id="author-message-gap-range" min="0" max="2.0" step="0.1" value="0.2" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- 💡 名前 垂直位置調整設定 (2行表示時のみ有効) -->
+                        <div class="flex flex-col gap-2 mb-3 border-t border-gray-600 pt-3 mt-3">
+                            <label class="w-full text-sm font-medium text-gray-300 mb-1">
+                                名前 垂直位置調整 (2行時): <span id="author-v-offset-display" class="font-mono text-blue-300">0px</span>
+                            </label>
+                            <!-- スライダー: min=-10px, max=10px, step=1px -->
+                            <input type="range" id="author-v-offset-range" min="-10" max="10" step="1" value="0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+
+                        <!-- 💡 独立したインデント調整設定グループ -->
+                        <div id="indent-settings-group" class="border-t border-gray-600 pt-3">
+                             <!-- 名前（ユーザー名）の左インデント調整設定 -->
+                            <div class="flex flex-col gap-2 mb-3" id="author-indent-setting">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">名前（ユーザー名）の左インデント調整 (2行時) <span id="author-indent-display" class="font-mono text-blue-300">0.0rem</span></label>
+                                <!-- スライダー: min=0rem, max=20rem, step=0.1rem -->
+                                <input type="range" id="author-indent-range" min="0" max="20.0" step="0.1" value="0.0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <!-- 本文（メッセージ）の左インデント調整設定 -->
+                            <div class="flex flex-col gap-2" id="message-indent-setting">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">本文（メッセージ）の左インデント調整 (2行時) <span id="message-indent-display" class="font-mono text-blue-300">0.0rem</span></label>
+                                <!-- スライダー: min=0rem, max=20rem, step=0.1rem -->
+                                <input type="range" id="message-indent-range" min="0" max="20.0" step="0.1" value="0.0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- グループ: フォントファミリー -->
+                        <div class="accordion-item">
+                            <button class="accordion-header"><h3>フォント設定</h3><span class="icon"></span></button>
+                            <div class="accordion-content">
+                                <div class="py-4 flex flex-col gap-4">
+                        <div class="flex flex-col gap-3">
+                            <!-- グローバルフォント (常に縦並び) -->
+                            <div class="flex flex-col gap-2">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">全体フォント:</label>
+                                <select id="global-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
+                                    <option value="'Noto Sans JP', 'Inter', sans-serif">Noto Sans JP (デフォルト)</option>
+                                    <option value="'Meiryo', sans-serif">メイリオ</option>
+                                    <option value="'Yu Gothic', sans-serif">游ゴシック</option>
+                                    <option value="'Inter', sans-serif">Inter (欧文)</option>
+                                    <option value="'Arial', sans-serif">Arial (汎用)</option>
+                                    <option value="'Courier New', monospace">Courier New (等幅)</option>
+                                </select>
+                            </div>
+                            
+                            <!-- ユーザー名フォント (常に縦並び) -->
+                            <div class="flex flex-col gap-2">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ユーザー名フォント:</label>
+                                <select id="author-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
+                                    <option value="">グローバルに従う (デフォルト)</option>
+                                    <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
+                                    <option value="'Meiryo', sans-serif">メイリオ</option>
+                                    <option value="'Yu Gothic', sans-serif">游ゴシック</option>
+                                    <option value="'Inter', sans-serif">Inter (欧文)</option>
+                                    <option value="'Courier New', monospace">Courier New (等幅)</option>
+                                </select>
+                            </div>
+                            
+                            <!-- チャット本文フォント (常に縦並び) -->
+                            <div class="flex flex-col gap-2">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">チャット本文フォント:</label>
+                                <select id="message-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
+                                    <option value="">グローバルに従う (デフォルト)</option>
+                                    <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
+                                    <option value="'Meiryo', sans-serif">メイリオ</option>
+                                    <option value="'Yu Gothic', sans-serif">游ゴシック</option>
+                                    <option value="'Inter', sans-serif">Inter (欧文)</option>
+                                    <option value="'Arial', sans-serif">Arial (汎用)</option>
+                                    <option value="'Courier New', monospace">Courier New (等幅)</option>
+                                </select>
+                            </div>
+
+                            <!-- ★新規: ピン留めユーザー名フォント -->
+                            <div class="flex flex-col gap-2 border-t border-gray-600 pt-3 mt-3">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めユーザー名フォント:</label>
+                                <select id="pinned-author-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
+                                    <option value="">通常エリアに従う</option>
+                                    <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
+                                    <option value="'Meiryo', sans-serif">メイリオ</option>
+                                    <option value="'Inter', sans-serif">Inter (欧文)</option>
+                                </select>
+                            </div>
+
+                            <!-- ★新規: ピン留めチャット本文フォント -->
+                            <div class="flex flex-col gap-2">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めチャット本文フォント:</label>
+                                <select id="pinned-message-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
+                                    <option value="">通常エリアに従う</option>
+                                    <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
+                                    <option value="'Meiryo', sans-serif">メイリオ</option>
+                                    <option value="'Inter', sans-serif">Inter (欧文)</option>
+                                </select>
+                            </div>
+                        </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- グループ: サイズと色 -->
+                        <div class="accordion-item">
+                            <button class="accordion-header active"><h3>サイズと色</h3><span class="icon"></span></button>
+                            <div class="accordion-content">
+                                <div class="py-4 flex flex-col gap-4">
+                        <!-- ユーザー名 サイズ/色設定 (常に縦並び) -->
+                        <div class="flex flex-col gap-2 mb-3">
+                            <label class="w-full text-sm font-medium text-gray-300 mb-1">ユーザー名:</label>
+                            <!-- サイズ変更ボタンとカラーピッカーのコンテナ (横並び維持) -->
+                            <div class="flex items-center gap-3 w-full"> 
+                                <!-- サイズ変更ボタンと表示フィールド -->
+                                <div class="flex items-stretch flex-grow">
+                                    <button id="author-size-down" class="bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-1 px-3 rounded-l-lg transition duration-150 shadow-md" aria-label="サイズを小さく">-</button>
+                                    <input type="text" id="author-font-size" class="p-2 border-y border-gray-600 bg-gray-800 text-white text-center w-full focus:ring-1 focus:ring-blue-500" value="1.0rem" readonly>
+                                    <button id="author-size-up" class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-1 px-3 rounded-r-lg transition duration-150 shadow-md" aria-label="サイズを大きく">+</button>
+                                </div>
+                                <!-- カラーピッカー (幅を固定) -->
+                                <input type="color" id="author-color" class="h-10 w-12 cursor-pointer bg-gray-800 rounded-lg border border-gray-600 shadow-md flex-shrink-0" value="#fec834">
+                            </div>
+                        </div>
+
+                        <!-- チャット本文 サイズ/色設定 (常に縦並び) -->
+                        <div class="flex flex-col gap-2">
+                            <label class="w-full text-sm font-medium text-gray-300 mb-1">チャット本文:</label>
+                            <!-- サイズ変更ボタンとカラーピッカーのコンテナ (横並び維持) -->
+                            <div class="flex items-center gap-3 w-full"> 
+                                <!-- サイズ変更ボタンと表示フィールド -->
+                                <div class="flex items-stretch flex-grow">
+                                    <button id="message-size-down" class="bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-1 px-3 rounded-l-lg transition duration-150 shadow-md" aria-label="サイズを小さく">-</button>
+                                    <input type="text" id="message-font-size" class="p-2 border-y border-gray-600 bg-gray-800 text-white text-center w-full focus:ring-1 focus:ring-blue-500" value="1.0rem" readonly>
+                                    <button id="message-size-up" class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-1 px-3 rounded-r-lg transition duration-150 shadow-md" aria-label="サイズを大きく">+</button>
+                                </div>
+                                <!-- カラーピッカー (幅を固定) -->
+                                <input type="color" id="message-color" class="h-10 w-12 cursor-pointer bg-gray-800 rounded-lg border border-gray-600 shadow-md flex-shrink-0" value="#e2e8f0">
+                            </div>
+                        </div>
+
+                        <!-- ★新規: ピン留めエリア専用のサイズと色 -->
+                        <div class="border-t border-gray-600 pt-3 mt-3">
+                            <h4 class="text-sm font-semibold mb-2 text-yellow-300">ピン留めエリア専用</h4>
+                            <!-- ピン留めユーザー名 サイズ/色設定 -->
+                            <div class="flex flex-col gap-2 mb-3">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めユーザー名:</label>
+                                <div class="flex items-center gap-3 w-full">
+                                    <div class="flex items-stretch flex-grow">
+                                        <button id="pinned-author-size-down" class="bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-1 px-3 rounded-l-lg transition duration-150 shadow-md">-</button>
+                                        <input type="text" id="pinned-author-font-size" class="p-2 border-y border-gray-600 bg-gray-800 text-white text-center w-full" value="1.0rem" readonly>
+                                        <button id="pinned-author-size-up" class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-1 px-3 rounded-r-lg transition duration-150 shadow-md">+</button>
+                                    </div>
+                                    <input type="color" id="pinned-author-color" class="h-10 w-12 cursor-pointer bg-gray-800 rounded-lg border border-gray-600 shadow-md flex-shrink-0" value="#fec834">
+                                </div>
+                            </div>
+                            <!-- ピン留めチャット本文 サイズ/色設定 -->
+                            <div class="flex flex-col gap-2">
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めチャット本文:</label>
+                                <div class="flex items-center gap-3 w-full">
+                                    <div class="flex items-stretch flex-grow">
+                                        <button id="pinned-message-size-down" class="bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-1 px-3 rounded-l-lg transition duration-150 shadow-md">-</button>
+                                        <input type="text" id="pinned-message-font-size" class="p-2 border-y border-gray-600 bg-gray-800 text-white text-center w-full" value="1.0rem" readonly>
+                                        <button id="pinned-message-size-up" class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-1 px-3 rounded-r-lg transition duration-150 shadow-md">+</button>
+                                    </div>
+                                    <input type="color" id="pinned-message-color" class="h-10 w-12 cursor-pointer bg-gray-800 rounded-lg border border-gray-600 shadow-md flex-shrink-0" value="#e2e8f0">
+                                </div>
+                            </div>
+                        </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <!-- 3. 制御ボタン群 -->
+                <div class="flex flex-col gap-3 w-full">
+                    <!-- ★修正: ボタンの高さを低くして操作エリアを広げる -->
+                    <button id="save-button" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-full text-base shadow-xl">設定を保存</button>
+                    
+                    <!-- ボタンを大きくし、シャドウを追加 -->
+                    <button id="start-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-full text-base shadow-xl">チャット取得開始</button>
+                    <button id="dummy-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-full text-base shadow-xl">デザインテスト</button>
+                    <!-- ★修正: クリアボタンを2つに分割して横並びにする -->
+                    <div class="flex gap-2 w-full">
+                        <button id="reset-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-1/2 text-base shadow-xl">全クリア</button>
+                        <button id="clear-pinned-button" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-1/2 text-base shadow-xl">ピンのみクリア</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ★修正: メイン表示エリアのラッパー構造を変更 -->
+    <div id="main-display-wrapper"> 
+        <!-- チャットとSCを囲むラッパー -->
+        <div id="chat-and-sc-wrapper">
+            <!-- チャット表示エリア (左側) -->
+            <div id="chat-container">
+                <!-- チャットメッセージがここに挿入されます (最新のメッセージが下) -->
+            </div>
+            
+            <!-- スーパーチャットストックエリア (右側) -->
+            <div id="superchat-stock-container">
+                <div class="p-4 border-b border-yellow-500/50">
+                    <h2 class="text-xl font-bold text-yellow-400">スーパーチャットストック</h2>
+                </div>
+                <!-- SCメッセージがここに挿入されます (最新のメッセージが上) -->
+            </div>
+        </div>
+
+        <!-- ピン留めチャット表示エリア (下部) -->
+    <div id="pinned-chat-container">
+        <!-- ピン留めされたチャットがここに挿入されます -->
+    </div>
+
+    <!-- ★修正: 古いメッセージボックスのコードを完全に削除 -->
+
+    <!-- ★修正: トースト通知用のコンテナ -->
+    <div id="toast-container">
+        <!-- トースト通知がここに挿入されます -->
+    </div>
+</div>
+
+
+<script type="text/javascript">
+    // --------------------------------------------------------------------------------
+    // グローバル変数
+    // --------------------------------------------------------------------------------
+    
+    // localStorage保存用のキー
+    const STORAGE_KEY = 'chatViewerCustomDesignSettings';
+
+    const API_BASE_URL = 'https://www.googleapis.com/youtube/v3/liveChat/messages';
+    let apiKey = '';
+    let liveChatId = '';
+    let nextPageToken = '';
+    let pollingInterval = 5000; 
+    let isPolling = false;
+
+    const chatContainer = document.getElementById('chat-container');
+    // ★新規: SCストックエリアの取得
+    const superchatStockContainer = document.getElementById('superchat-stock-container');
+    // ★新規: ピン留めチャットエリアの取得
+    const pinnedChatContainer = document.getElementById('pinned-chat-container');
+    
+    const startButton = document.getElementById('start-button');
+    const dummyButton = document.getElementById('dummy-button');
+    const resetButton = document.getElementById('reset-button');
+    // ★新規: ピンクリアボタンの取得
+    const clearPinnedButton = document.getElementById('clear-pinned-button');
+    
+    const saveButton = document.getElementById('save-button'); 
+
+    // 入力フィールド
+    const apiKeyInput = document.getElementById('api-key');
+    const videoIdInput = document.getElementById('video-id');
+    const backgroundImageInput = document.getElementById('background-image-url');
+    
+    // カスタム設定入力フィールド
+    const globalFontInput = document.getElementById('global-font-family'); 
+    const authorFontInput = document.getElementById('author-font-family'); 
+    const messageFontInput = document.getElementById('message-font-family'); 
+
+    // ★新規: ピン留めエリア専用のフォント/サイズ/カラー制御要素
+    const pinnedAuthorFontInput = document.getElementById('pinned-author-font-family');
+    const pinnedMessageFontInput = document.getElementById('pinned-message-font-family');
+    const pinnedAuthorSizeInput = document.getElementById('pinned-author-font-size');
+    const pinnedAuthorSizeUpButton = document.getElementById('pinned-author-size-up');
+    const pinnedAuthorSizeDownButton = document.getElementById('pinned-author-size-down');
+    const pinnedMessageSizeInput = document.getElementById('pinned-message-font-size');
+    const pinnedMessageSizeUpButton = document.getElementById('pinned-message-size-up');
+    const pinnedMessageSizeDownButton = document.getElementById('pinned-message-size-down');
+    const pinnedAuthorColorInput = document.getElementById('pinned-author-color');
+    const pinnedMessageColorInput = document.getElementById('pinned-message-color');
+    
+    // フォントサイズ/カラー制御要素
+    const authorSizeInput = document.getElementById('author-font-size');
+    const authorSizeUpButton = document.getElementById('author-size-up'); 
+    const authorSizeDownButton = document.getElementById('author-size-down'); 
+
+    const messageSizeInput = document.getElementById('message-font-size');
+    const messageSizeUpButton = document.getElementById('message-size-up');
+    const messageSizeDownButton = document.getElementById('message-size-down');
+
+    const authorColorInput = document.getElementById('author-color');
+    const messageColorInput = document.getElementById('message-color');
+    
+    // 行数・配置制御要素
+    const chatDisplayModeInput = document.getElementById('chat-display-mode');
+    
+    // 文字数・間隔制御要素
+    const charLimitRange = document.getElementById('char-limit-range');
+    const charLimitDisplay = document.getElementById('char-limit-display');
+    const authorMessageGapRange = document.getElementById('author-message-gap-range');
+    const gapDisplay = document.getElementById('gap-display');
+    
+    // 💡 垂直位置調整制御要素
+    const authorVOffsetRange = document.getElementById('author-v-offset-range');
+    const authorVOffsetDisplay = document.getElementById('author-v-offset-display');
+    
+    // インデント制御要素
+    const indentSettingsGroupDiv = document.getElementById('indent-settings-group');
+    const authorIndentRange = document.getElementById('author-indent-range');
+    const authorIndentDisplay = document.getElementById('author-indent-display');
+    const messageIndentRange = document.getElementById('message-indent-range');
+    const messageIndentDisplay = document.getElementById('message-indent-display');
+    
+    // フォントサイズの状態管理（rem単位、小数点以下1桁）
+    let authorFontSizeRem = 1.0;
+    let messageFontSizeRem = 1.0;
+    const FONT_STEP = 0.1;
+    const MIN_FONT_SIZE = 0.5;
+    const MAX_FONT_SIZE = 3.0;
+    // ★新規: ピン留めエリアのフォントサイズ管理
+    let pinnedAuthorFontSizeRem = 1.0;
+    let pinnedMessageFontSizeRem = 1.0;
+
+    // ★修正: DOMに保持するメッセージの最大数 (パフォーマンスのため)
+    const MAX_DOM_MESSAGES = 100;
+    
+    // --------------------------------------------------------------------------------
+    // ユーティリティ: カスタムメッセージボックス
+    // --------------------------------------------------------------------------------
+    // ★修正: モーダルからトースト通知に変更
+    function showMessageBox(title, content) {
+        const toastContainer = document.getElementById('toast-container');
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast-message';
+        
+        const toastTitle = document.createElement('h3');
+        toastTitle.className = 'font-bold text-sky-300 mb-1';
+        toastTitle.textContent = title;
+
+        const toastContent = document.createElement('p');
+        toastContent.className = 'text-sm text-gray-200';
+        toastContent.textContent = content;
+
+        toast.appendChild(toastTitle);
+        toast.appendChild(toastContent);
+        toastContainer.appendChild(toast);
+
+        // 5秒後にトーストを削除
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            // アニメーション完了後にDOMから削除
+            toast.addEventListener('animationend', () => toast.remove());
+        }, 5000);
+    }
+
+    // --------------------------------------------------------------------------------
+    // デザイン設定の保存/ロード (localStorage)
+    // --------------------------------------------------------------------------------
+    
+    // すべてのデザイン設定をUIから取得する関数
+    function getCurrentDesignSettings() {
+        return {
+            // API設定も保存対象に含める
+            apiKey: apiKeyInput.value.trim(),
+            videoId: videoIdInput.value.trim(),
+
+            // デザイン設定
+            globalFont: globalFontInput.value,
+            authorFont: authorFontInput.value,
+            messageFont: messageFontInput.value,
+            authorSize: authorSizeInput.value,
+            authorColor: authorColorInput.value,
+            messageSize: messageSizeInput.value,
+            messageColor: messageColorInput.value,
+            backgroundImageUrl: backgroundImageInput.value,
+            charLimit: parseInt(charLimitRange.value, 10),
+            displayMode: chatDisplayModeInput.value,
+            authorMessageGap: parseFloat(authorMessageGapRange.value),
+            authorVOffset: parseInt(authorVOffsetRange.value, 10), // 💡 垂直位置
+            authorIndent: parseFloat(authorIndentRange.value),
+            messageIndent: parseFloat(messageIndentRange.value),
+            // ★新規: ピン留め設定
+            pinnedAuthorFont: pinnedAuthorFontInput.value,
+            pinnedMessageFont: pinnedMessageFontInput.value,
+            pinnedAuthorSize: pinnedAuthorSizeInput.value,
+            pinnedAuthorColor: pinnedAuthorColorInput.value,
+            pinnedMessageSize: pinnedMessageSizeInput.value,
+            pinnedMessageColor: pinnedMessageColorInput.value,
+        };
+    }
+
+    // デザイン設定をlocalStorageに保存する関数
+    function saveDesignSettings() {
+        const settingsData = getCurrentDesignSettings();
+        
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsData));
+            showMessageBox('保存完了', 'デザイン設定（API設定を含む）がブラウザに保存されました。');
+        } catch (e) {
+            console.error('Error saving to localStorage: ', e);
+            showMessageBox('保存エラー', '設定の保存中に問題が発生しました。ブラウザの設定（プライベートブラウジングなど）を確認してください。');
+        }
+    }
+
+    // JSONデータに基づいてUI要素に値を適用するヘルパー関数
+    function applySettingsToUI(data) {
+        // API設定の復元
+        apiKeyInput.value = data.apiKey || '';
+        videoIdInput.value = data.videoId || '';
+
+        // デザイン設定の復元
+        globalFontInput.value = data.globalFont || globalFontInput.value;
+        authorFontInput.value = data.authorFont || authorFontInput.value;
+        messageFontInput.value = data.messageFont || messageFontInput.value;
+        
+        // サイズは小数点以下1桁に丸めて代入
+        const savedAuthorSizeRem = parseFloat(data.authorSize);
+        authorSizeInput.value = (savedAuthorSizeRem || 1.0).toFixed(1) + 'rem';
+        authorFontSizeRem = savedAuthorSizeRem || 1.0;
+        
+        const savedMessageSizeRem = parseFloat(data.messageSize);
+        messageSizeInput.value = (savedMessageSizeRem || 1.0).toFixed(1) + 'rem';
+        messageFontSizeRem = savedMessageSizeRem || 1.0;
+        
+        authorColorInput.value = data.authorColor || authorColorInput.value;
+        messageColorInput.value = data.messageColor || messageColorInput.value;
+        
+        backgroundImageInput.value = data.backgroundImageUrl || backgroundImageInput.value;
+
+        charLimitRange.value = data.charLimit || 80;
+        
+        chatDisplayModeInput.value = data.displayMode || 'multi';
+
+        authorMessageGapRange.value = (parseFloat(data.authorMessageGap) || 0.2).toFixed(1);
+        
+        // 💡 垂直位置の復元
+        authorVOffsetRange.value = data.authorVOffset || 0;
+        
+        authorIndentRange.value = (parseFloat(data.authorIndent) || 0.0).toFixed(1);
+        messageIndentRange.value = (parseFloat(data.messageIndent) || 0.0).toFixed(1);
+
+        // ★新規: ピン留め設定の復元
+        pinnedAuthorFontInput.value = data.pinnedAuthorFont || '';
+        pinnedMessageFontInput.value = data.pinnedMessageFont || '';
+
+        const savedPinnedAuthorSizeRem = parseFloat(data.pinnedAuthorSize);
+        pinnedAuthorSizeInput.value = (savedPinnedAuthorSizeRem || 1.0).toFixed(1) + 'rem';
+        pinnedAuthorFontSizeRem = savedPinnedAuthorSizeRem || 1.0;
+
+        const savedPinnedMessageSizeRem = parseFloat(data.pinnedMessageSize);
+        pinnedMessageSizeInput.value = (savedPinnedMessageSizeRem || 1.0).toFixed(1) + 'rem';
+        pinnedMessageFontSizeRem = savedPinnedMessageSizeRem || 1.0;
+
+        pinnedAuthorColorInput.value = data.pinnedAuthorColor || '#fec834';
+        pinnedMessageColorInput.value = data.pinnedMessageColor || '#e2e8f0';
+    }
+
+    // デザイン設定をlocalStorageから読み込み、UIに適用する関数
+    function loadDesignSettings() {
+        try {
+            const storedSettings = localStorage.getItem(STORAGE_KEY);
+            if (storedSettings) {
+                const data = JSON.parse(storedSettings);
+                applySettingsToUI(data);
+                console.log("Design settings loaded from localStorage.");
+            } else {
+                console.log("No design settings found in localStorage. Using default.");
+            }
+        } catch (e) {
+            console.error('Error loading from localStorage: ', e);
+        }
+        
+        // 読み込み結果に関わらず、UIの初期化とCSS変数の適用は行う
+        initializeLayoutSettings();
+    }
+
+
+    // --------------------------------------------------------------------------------
+    // YouTube API Core Functions (No Change)
+    // --------------------------------------------------------------------------------
+    
+    function extractVideoId(input) {
+        const urlPattern = /(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|v\/|shorts\/))([\w-]{11})/;
+        const match = input.match(urlPattern);
+
+        if (match) {
+            return match[1];
+        }
+
+        if (/^[\w-]{11}$/.test(input)) {
+            return input;
+        }
+
+        return null;
+    }
+
+
+    async function fetchLiveChatId(videoId) {
+        // APIキーは入力フィールドから再取得する
+        apiKey = apiKeyInput.value.trim(); 
+        const url = `https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}&key=${apiKey}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.items && data.items.length > 0) {
+                const details = data.items[0].liveStreamingDetails;
+                if (details && details.activeLiveChatId) {
+                    return details.activeLiveChatId;
+                }
+            }
+            showMessageBox('エラー', 'ライブチャットIDが見つかりません。動画IDまたは配信状況を確認してください。');
+            return null;
+        } catch (error) {
+            console.error('ライブチャットID取得エラー:', error);
+            showMessageBox('APIエラー', '動画情報取得中にエラーが発生しました。APIキーまたはネットワークを確認してください。');
+            return null;
+        }
+    }
+
+
+    function cleanupOldMessages() {
+        // ★修正: UI設定ではなく、内部的な上限値でDOMをクリーンアップ
+        while (chatContainer.children.length > MAX_DOM_MESSAGES) { 
+            chatContainer.removeChild(chatContainer.lastElementChild);
+        }
+    }
+
+    // 指数バックオフ付きのFetchラッパー関数
+    async function fetchWithExponentialBackoff(url, maxRetries = 5) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    return response;
+                }
+                
+                // 4xx, 5xx のエラーはリトライせずに処理を終了
+                if (response.status >= 400) {
+                    throw new Error(response.status);
+                }
+                
+            } catch (error) {
+                // ネットワークエラーなど
+                if (i === maxRetries - 1) throw error;
+            }
+
+            // Exponential Backoff: 2^i * 1000 ms の遅延
+            const delay = Math.pow(2, i) * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    async function fetchChatMessages() {
+        if (!liveChatId || !isPolling) return;
+    
+        const url = `${API_BASE_URL}?liveChatId=${liveChatId}&part=id,snippet,authorDetails&key=${apiKey}&pageToken=${nextPageToken}`;
+    
+        try {
+            const response = await fetch(url); // バックオフは一旦削除し、直接fetch
+            const data = await response.json();
+    
+            // ★修正: APIからのエラー応答を詳細にハンドリング
+            if (data.error) {
+                const errorDetails = data.error.errors[0];
+                console.error('API Error:', data.error);
+                let userMessage = `APIエラーが発生しました (理由: ${errorDetails.reason})。`;
+                if (errorDetails.reason === 'quotaExceeded') {
+                    userMessage = 'YouTube APIの利用上限に達しました。時間をおいて試すか、キーを確認してください。';
+                } else if (errorDetails.reason === 'forbidden') {
+                     userMessage = 'APIキーに問題があるか、このライブ配信のチャット取得が許可されていません。';
+                }
+                throw new Error(userMessage); // catchブロックで処理するためにエラーを投げる
+            }
+            
+            nextPageToken = data.nextPageToken || '';
+            pollingInterval = data.pollingIntervalMillis || 5000;
+    
+            if (data.items && data.items.length > 0) {
+                data.items.forEach(message => {
+                    displayMessage(message);
+                });
+            }
+        } catch (error) {
+            // ★修正: エラーメッセージをユーザーに表示
+            showMessageBox('取得エラー', error.message);
+            console.error('チャットメッセージ取得エラー:', error);
+            isPolling = false;
+            startButton.textContent = '取得開始';
+            return;
+        }
+    
+        if (isPolling) {
+            setTimeout(fetchChatMessages, pollingInterval);
+        }
+    }
+    
+    function generateDummyMessage(type) {
+        const commonAuthor = {
+            displayName: "ダミーユーザー",
+            displayColor: "#FFC300", 
+            isChatOwner: false,
+            isChatModerator: false,
+            isChatSponsor: false,
+        };
+
+        // 4種類のダミーメッセージをランダムな順序で生成
+        const dummyTypes = ['normal', 'moderator', 'member', 'superchat'];
+        let messagesToGenerate = [];
+
+        // 全てのタイプを生成
+        dummyTypes.forEach(t => {
+            let msg;
+            const now = Date.now() + Math.random(); 
+            switch(t) {
+                case 'normal':
+                    msg = {
+                        id: `dummy-normal-${now}`,
+                        snippet: {
+                            type: 'textMessageEvent',
+                            textMessageDetails: { messageText: "これは普通のチャットメッセージです。フォントや色の基本デザインのテストに使ってください。本文の長さが切れないか確認しています。" }
+                        },
+                        authorDetails: commonAuthor
+                    };
+                    break;
+                case 'moderator':
+                    msg = {
+                        id: `dummy-mod-${now}`,
+                        snippet: {
+                            type: 'textMessageEvent',
+                            textMessageDetails: { messageText: "【モデレーター】このメッセージは左側の青い線とアイコンで強調されています。レイアウトの確認をしましょう。" }
+                        },
+                        authorDetails: { ...commonAuthor, displayName: "Mod太郎", isChatModerator: true }
+                    };
+                    break;
+                case 'member':
+                    msg = {
+                        id: `dummy-member-${now}`,
+                        snippet: {
+                            type: 'textMessageEvent',
+                            textMessageDetails: { messageText: "【メンバー限定】メンバーシップの背景色（暗い青）とアイコンのテストです。特別なデザインを適用できます。" }
+                        },
+                        authorDetails: { ...commonAuthor, displayName: "メンバー田中", isChatSponsor: true }
+                    };
+                    break;
+                case 'superchat':
+                    msg = {
+                        id: `dummy-sc-${now}`,
+                        snippet: {
+                            type: 'superChatEvent',
+                            displayMessage: "スーパーチャットありがとうございます！カスタムアニメーションのテストにも使えます。",
+                            superChatDetails: {
+                                amountDisplayString: "¥5,000",
+                                userComment: "応援しています！コメントは長文に耐えられるかテスト中です。このメッセージは非常に長いです。このメッセージは非常に長いです。このメッセージは非常に長いです。"
+                            },
+                            type: 'superChatEvent'
+                        },
+                        authorDetails: { ...commonAuthor, displayName: "SC山田" }
+                    };
+                    break;
+            }
+            messagesToGenerate.push(msg);
+        });
+        
+        // 生成したメッセージを全て表示 (displayMessageがSCを振り分ける)
+        messagesToGenerate.forEach(msg => displayMessage(msg));
+    }
+
+    function displaySuperChatInStock(author, amount, comment, id) {
+        const scStockHtml = `
+            <div class="sc-stock-message" data-id="stock-${id}" style="cursor: pointer;">
+                <div class="flex items-center justify-between mb-1 sc-author-container">
+                    <span class="sc-author">${author.displayName}</span>
+                    <span class="sc-amount">${amount}</span>
+                </div>
+                ${comment ? `<div class="sc-comment">${comment}</div>` : ''}
+            </div>
+        `;
+
+        // 最新のものが一番上に来るように 'afterbegin' で挿入
+        // SCストックエリアのヘッダー要素の後に追加するために、ヘッダー要素（最初の要素）があればその直後に挿入する
+        const header = superchatStockContainer.querySelector('div:first-child');
+        if (header) {
+            header.insertAdjacentHTML('afterend', scStockHtml);
+        } else {
+            superchatStockContainer.insertAdjacentHTML('afterbegin', scStockHtml);
+        }
+        
+        // ストックエリアにスクロールバーがある場合、最新のものが見えるようにスクロール
+        superchatStockContainer.scrollTop = 0; 
+    }
+
+
+    function displayMessage(message) {
+        const snippet = message.snippet;
+        const author = message.authorDetails;
+
+        const messageType = snippet.type; 
+
+        let messageText = '';
+        let isSuperChat = false;
+        let isMember = false;
+        let amountString = ''; // SC金額用
+        let userComment = ''; // SCコメント用
+
+
+        if (messageType === 'textMessageEvent') {
+            messageText = snippet.textMessageDetails.messageText;
+        } else if (messageType === 'superChatEvent') {
+            const details = snippet.superChatDetails;
+            amountString = details.amountDisplayString;
+            userComment = details.userComment || '（コメントなし）';
+            // SCの場合は、本文に金額を強調して表示する
+            // 金額を色分けするため、HTMLタグを含める
+            messageText = `<span class="font-bold text-lg text-yellow-300 mr-2">${amountString}</span><br>${userComment}`;
+            isSuperChat = true;
+            // SCストックに追加
+            displaySuperChatInStock(author, amountString, userComment, message.id);
+        } else if (messageType === 'superStickerEvent') {
+            const details = snippet.superStickerDetails;
+            amountString = details.amountDisplayString;
+            userComment = details.userComment || '（コメントなし）';
+            messageText = `[スーパーステッカー: ${amountString}]`;
+            isSuperChat = true;
+            // SCストックに追加
+            displaySuperChatInStock(author, amountString, messageText, message.id); 
+        } else if (messageType === 'newSponsorEvent' || messageType === 'membershipGiftingEvent') {
+             messageText = snippet.displayMessage;
+             isMember = true;
+        } else {
+            return;
+        }
+        
+        // ★修正点: SCメッセージをメインチャットから除外するロジックを削除しました。★
+
+
+        let badgeHtml = '';
+        if (author.isChatOwner) {
+            badgeHtml = `<span class="membership-badge">👑</span>`;
+        } else if (author.isChatModerator) {
+            badgeHtml = `<span class="membership-badge">🔨</span>`; 
+        } else if (author.isChatSponsor) {
+            badgeHtml = `<span class="membership-badge">⭐</span>`; 
+            isMember = true;
+        }
+
+        // ★修正: isSuperChatの場合、他のバッジより優先してコインアイコンを表示
+        if (isSuperChat) {
+            badgeHtml = `<span class="membership-badge">🪙</span>`;
+        }
+
+        const displayMode = chatDisplayModeInput.value;
+        
+        let classes = ['chat-message'];
+        if (author.isChatModerator) classes.push('is-moderator');
+        // ★修正点: SCクラスを追加するように復活
+        if (isSuperChat) classes.push('is-superchat'); 
+        if (isMember) classes.push('is-member');
+
+        if (displayMode === 'multi') {
+            classes.push('multi-line-mode');
+        }
+
+        // ★修正: スタイルを直接書き込むのをやめ、CSS変数経由で適用する
+        const imageUrl = backgroundImageInput.value.trim();
+
+
+        let dataAttr = '';
+        if (imageUrl) {
+            dataAttr = `data-bg-image="true"`;
+        }
+
+        const styleAttributes = ``; // style属性は空にする
+
+        const messageHtml = `
+            <div class="${classes.join(' ')}" data-id="${message.id}" ${dataAttr} ${styleAttributes}>
+                <div class="message-content-wrapper">
+                    <div class="author-name-container">
+                        ${badgeHtml}
+                        <span class="author-name">${author.displayName}</span>
+                    </div>
+                    <span class="message-text">${messageText}</span>
+                </div>
+            </div>
+        `;
+
+        chatContainer.insertAdjacentHTML('afterbegin', messageHtml);
+        
+        cleanupOldMessages();
+        
+        // スクロールを最下部に移動
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    function updateFontSize(target, step) {
+        let currentSize;
+        let inputElement;
+
+        if (target === 'author') {
+            currentSize = authorFontSizeRem;
+            inputElement = authorSizeInput;
+        } else if (target === 'message') {
+            currentSize = messageFontSizeRem;
+            inputElement = messageSizeInput;
+        } else if (target === 'pinned-author') {
+            // ★修正: ピン留め用のターゲットを正しく処理
+            currentSize = pinnedAuthorFontSizeRem;
+            inputElement = pinnedAuthorSizeInput;
+        } else if (target === 'pinned-message') {
+            currentSize = pinnedMessageFontSizeRem;
+            inputElement = pinnedMessageSizeInput;
+        } else {
+            return;
+        }
+
+        let newSize = Math.round((currentSize + step) * 10) / 10;
+        
+        if (newSize < MIN_FONT_SIZE) newSize = MIN_FONT_SIZE;
+        if (newSize > MAX_FONT_SIZE) newSize = MAX_FONT_SIZE;
+
+        if (target === 'author') {
+            authorFontSizeRem = newSize;
+        } else if (target === 'message') {
+            messageFontSizeRem = newSize;
+        } else if (target === 'pinned-author') {
+            pinnedAuthorFontSizeRem = newSize;
+        } else if (target === 'pinned-message') {
+            pinnedMessageFontSizeRem = newSize;
+        }
+
+        inputElement.value = `${newSize.toFixed(1)}rem`;
+        
+        // ★修正: CSS変数を更新し、変更を即座に反映させる
+        initializeLayoutSettings();
+    }
+    
+    // --------------------------------------------------------------------------------
+    // レイアウト設定の初期化と反映 (ロード時、またはデフォルト値設定時)
+    // --------------------------------------------------------------------------------
+    function initializeLayoutSettings() {
+        // 全体フォント
+        const globalFont = globalFontInput.value.trim();
+        document.documentElement.style.setProperty('--global-font-family', globalFont || "'Noto Sans JP', 'Inter', sans-serif");
+        
+        // ユーザー名フォント
+        const authorFont = authorFontInput.value.trim();
+        document.documentElement.style.setProperty('--author-font-family', authorFont);
+        
+        // チャット本文フォント
+        const messageFont = messageFontInput.value.trim();
+        document.documentElement.style.setProperty('--message-font-family', messageFont);
+
+        // ★修正: 通常エリアのフォントサイズと色もCSSカスタムプロパティで設定
+        const authorSize = authorSizeInput.value.trim();
+        document.documentElement.style.setProperty('--normal-author-font-size', authorSize);
+        const authorColor = authorColorInput.value.trim();
+        document.documentElement.style.setProperty('--normal-author-color-override', authorColor);
+        const messageSize = messageSizeInput.value.trim();
+        document.documentElement.style.setProperty('--normal-message-font-size', messageSize);
+        const messageColor = messageColorInput.value.trim();
+        document.documentElement.style.setProperty('--normal-message-color-override', messageColor);
+
+        // ★新規: ピン留めエリアのフォント・色・サイズを反映
+        document.documentElement.style.setProperty('--pinned-author-font-family', pinnedAuthorFontInput.value.trim());
+        document.documentElement.style.setProperty('--pinned-message-font-family', pinnedMessageFontInput.value.trim());
+
+        // ★修正: ピン留めエリアのフォントサイズと色をCSSカスタムプロパティに設定
+        const pinnedAuthorSize = pinnedAuthorSizeInput.value.trim();
+        document.documentElement.style.setProperty('--pinned-author-font-size', pinnedAuthorSize);
+        const pinnedAuthorColor = pinnedAuthorColorInput.value.trim();
+        document.documentElement.style.setProperty('--pinned-author-color-override', pinnedAuthorColor);
+
+        const pinnedMessageSize = pinnedMessageSizeInput.value.trim();
+        document.documentElement.style.setProperty('--pinned-message-font-size', pinnedMessageSize);
+        const pinnedMessageColor = pinnedMessageColorInput.value.trim();
+        document.documentElement.style.setProperty('--pinned-message-color-override', pinnedMessageColor);
+
+        
+        // 2行表示時（初期値）のみインデント設定グループを表示/非表示
+        const mode = chatDisplayModeInput.value;
+        indentSettingsGroupDiv.classList.toggle('hidden', mode === 'single');
+        
+        // 💡 垂直位置の値を反映 (px)
+        const initialAuthorVOffset = parseInt(authorVOffsetRange.value, 10);
+        document.documentElement.style.setProperty('--author-vertical-offset-px', `${initialAuthorVOffset}px`);
+        authorVOffsetDisplay.textContent = `${initialAuthorVOffset}px`;
+
+        // 名前インデントの値を反映
+        const initialAuthorIndent = parseFloat(authorIndentRange.value).toFixed(1);
+        document.documentElement.style.setProperty('--author-indent-rem', `${initialAuthorIndent}rem`);
+        authorIndentDisplay.textContent = `${initialAuthorIndent}rem`;
+
+        // 本文インデントの値を反映
+        const initialMessageIndent = parseFloat(messageIndentRange.value).toFixed(1);
+        document.documentElement.style.setProperty('--message-indent-rem', `${initialMessageIndent}rem`);
+        messageIndentDisplay.textContent = `${initialMessageIndent}rem`;
+        
+        // 名前と本文の上下の間隔の値を反映
+        const initialGap = parseFloat(authorMessageGapRange.value).toFixed(1);
+        document.documentElement.style.setProperty('--author-message-gap-rem', `${initialGap}rem`);
+        gapDisplay.textContent = `${initialGap}rem`;
+
+        // 文字数制限の値を反映
+        const initialCharLimit = parseInt(charLimitRange.value, 10);
+        document.documentElement.style.setProperty('--message-max-chars', `${initialCharLimit}ch`);
+        charLimitDisplay.textContent = `${initialCharLimit}文字`;
+    }
+    
+    // --------------------------------------------------------------------------------
+    // イベントリスナー
+    // --------------------------------------------------------------------------------
+    
+    // ★追加: 設定保存ボタンのリスナー★
+    if (saveButton) saveButton.addEventListener('click', saveDesignSettings);
+
+    // サイズ変更ボタンのリスナー
+    if (authorSizeUpButton) authorSizeUpButton.addEventListener('click', () => updateFontSize('author', FONT_STEP));
+    if (authorSizeDownButton) authorSizeDownButton.addEventListener('click', () => updateFontSize('author', -FONT_STEP));
+    if (messageSizeUpButton) messageSizeUpButton.addEventListener('click', () => updateFontSize('message', FONT_STEP));
+    if (messageSizeDownButton) messageSizeDownButton.addEventListener('click', () => updateFontSize('message', -FONT_STEP));
+
+    // ★新規: ピン留めエリアのサイズ変更ボタンのリスナー
+    if (pinnedAuthorSizeUpButton) pinnedAuthorSizeUpButton.addEventListener('click', () => updateFontSize('pinned-author', FONT_STEP));
+    if (pinnedAuthorSizeDownButton) pinnedAuthorSizeDownButton.addEventListener('click', () => updateFontSize('pinned-author', -FONT_STEP));
+    if (pinnedMessageSizeUpButton) pinnedMessageSizeUpButton.addEventListener('click', () => updateFontSize('pinned-message', FONT_STEP));
+    if (pinnedMessageSizeDownButton) pinnedMessageSizeDownButton.addEventListener('click', () => updateFontSize('pinned-message', -FONT_STEP));
+
+    // フォント/カラー/画像URL変更リスナー (即時反映 + ダミーで確認)
+    [globalFontInput, authorFontInput, messageFontInput, pinnedAuthorFontInput, pinnedMessageFontInput].forEach(input => {
+        input.addEventListener('change', () => { initializeLayoutSettings(); generateDummyMessage('normal'); });
+    });
+    [authorColorInput, messageColorInput, backgroundImageInput, pinnedAuthorColorInput, pinnedMessageColorInput].forEach(input => {
+        input.addEventListener('input', (e) => {
+            // inputイベントはリアルタイムでCSS変数を更新
+            initializeLayoutSettings();
+            generateDummyMessage('normal');
+        });
+    });
+    
+    // レイアウト設定変更リスナー
+    chatDisplayModeInput.addEventListener('change', (e) => {
+        initializeLayoutSettings();
+        generateDummyMessage('normal');
+    });
+
+    // スライダー系リスナー (inputイベントでリアルタイム更新)
+    // 💡 authorVOffsetRangeをここに追加
+    [charLimitRange, authorMessageGapRange, authorIndentRange, messageIndentRange, authorVOffsetRange].forEach(range => {
+        range.addEventListener('input', (e) => {
+            // CSS変数と表示を更新
+            initializeLayoutSettings(); 
+            // 反映確認
+            generateDummyMessage('normal'); 
+        });
+    });
+
+    // ダミー・リセットボタン
+    dummyButton.addEventListener('click', () => {
+        // 全タイプのダミーを生成
+        generateDummyMessage('normal');
+    });
+
+    resetButton.addEventListener('click', () => {
+        chatContainer.innerHTML = '';
+        // SCストックエリアのヘッダー以外をクリア
+        superchatStockContainer.innerHTML = `<div class="p-4 border-b border-yellow-500/50">
+                <h2 class="text-xl font-bold text-yellow-400">スーパーチャットストック</h2>
+            </div>`;
+        // ★修正: ピン留めエリアもクリア
+        pinnedChatContainer.innerHTML = '';
+        showMessageBox('リセット完了', 'すべてのチャット表示エリアをクリアしました。');
+    });
+
+    // ★新規: ピン留めエリアのみクリアするボタンのリスナー
+    clearPinnedButton.addEventListener('click', async () => {
+        const pinnedMessages = pinnedChatContainer.querySelectorAll('.pinned-message');
+        if (pinnedMessages.length === 0) {
+            showMessageBox('通知', 'クリアするピン留めチャットがありません。');
+            return;
+        }
+
+        // ★修正: アニメーションを待つように変更
+        const animations = Array.from(pinnedMessages).map(msg => {
+            return new Promise(resolve => {
+                togglePinIcon(msg.dataset.id, false);
+                msg.classList.add('hiding');
+                msg.addEventListener('animationend', resolve, { once: true });
+            });
+        });
+
+        await Promise.all(animations);
+
+        pinnedChatContainer.innerHTML = ''; // アニメーション完了後にクリア
+        showMessageBox('クリア完了', 'ピン留めエリアをクリアしました。');
+    });
+    startButton.addEventListener('click', async () => {
+        if (isPolling) {
+            isPolling = false;
+            startButton.textContent = '取得開始';
+            showMessageBox('停止しました', 'チャットの自動取得を停止しました。');
+            return;
+        }
+        
+        apiKey = apiKeyInput.value.trim();
+        const rawInput = videoIdInput.value.trim();
+
+        if (!apiKey || !rawInput) {
+            showMessageBox('入力不足', 'APIキーと動画IDまたはURLの両方を入力してください。');
+            return;
+        }
+        
+        const videoId = extractVideoId(rawInput);
+        
+        if (!videoId) {
+            showMessageBox('ID抽出エラー', '有効なYouTube動画IDまたはURLを入力してください。');
+            return;
+        }
+
+        startButton.textContent = 'ライブチャットID取得中...';
+        startButton.disabled = true;
+        
+        liveChatId = await fetchLiveChatId(videoId);
+
+        if (liveChatId) {
+            isPolling = true;
+            nextPageToken = '';
+            chatContainer.innerHTML = '';
+            // SCストックエリアのヘッダー以外をクリア
+            superchatStockContainer.innerHTML = `<div class="p-4 border-b border-yellow-500/50">
+                <h2 class="text-xl font-bold text-yellow-400">スーパーチャットストック</h2>
+            </div>`;
+            startButton.textContent = 'チャット取得中 (クリックで停止)';
+            startButton.disabled = false;
+            fetchChatMessages();
+        } else {
+            startButton.textContent = '取得開始';
+            startButton.disabled = false;
+        }
+    });
+    
+    // アプリケーション起動時の処理
+    document.addEventListener('DOMContentLoaded', () => {
+        // localStorageから設定を読み込む
+        loadDesignSettings();
+        
+        // ダミーメッセージを生成して表示を初期化
+        generateDummyMessage('normal');
+    });
+    
+    // ★新規: アコーディオンUIの制御
+    document.querySelectorAll('.accordion-header').forEach(button => {
+        button.addEventListener('click', () => {
+            const content = button.nextElementSibling;
+            
+            button.classList.toggle('active');
+
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+                content.style.padding = "0 1rem";
+            } else {
+                content.style.maxHeight = content.scrollHeight + 32 + "px"; // 32pxはpy-4の分
+                content.style.padding = "1rem";
+            } 
+        });
+    });
+    // --------------------------------------------------------------------------------
+    // ★新規: チャットのピン留め機能
+    // --------------------------------------------------------------------------------
+    const MAX_PINNED_CHATS = 6;
+
+    // ★新規: ピンアイコンを追加/削除するヘルパー関数
+    function togglePinIcon(messageId, add = true) {
+        // 通常チャットとSCストックの両方から要素を探す
+        const originalMessage = document.querySelector(`.chat-message[data-id="${messageId}"]`) || document.querySelector(`.sc-stock-message[data-id="${messageId}"]`);
+        if (!originalMessage) return;
+
+        const authorContainer = originalMessage.querySelector('.author-name-container') || originalMessage.querySelector('.sc-author-container');
+        if (!authorContainer) return;
+
+        if (add) {
+            const pinIcon = document.createElement('span');
+            pinIcon.className = 'pin-icon';
+            pinIcon.textContent = '📌';
+            authorContainer.insertAdjacentElement('afterbegin', pinIcon);
+        } else {
+            const existingIcon = authorContainer.querySelector('.pin-icon');
+            if (existingIcon) existingIcon.remove();
+        }
+    }
+
+    // チャットコンテナ内でのクリックを監視 (イベントデリゲーション)
+    chatContainer.addEventListener('click', (e) => {
+        const chatMessage = e.target.closest('.chat-message');
+        if (!chatMessage) return;
+
+        const messageId = chatMessage.dataset.id;
+        
+        // すでにピン留めされていないか確認
+        if (pinnedChatContainer.querySelector(`[data-id="${messageId}"]`)) {
+            showMessageBox('通知', 'このメッセージはすでにピン留めされています。');
+            return;
+        }
+
+        // ピン留めメッセージが最大数に達していたら、一番古いものを削除
+        if (pinnedChatContainer.children.length >= MAX_PINNED_CHATS) {
+            pinnedChatContainer.removeChild(pinnedChatContainer.lastElementChild);
+        }
+
+        // メッセージを複製してピン留めコンテナに追加
+        const pinnedMessage = chatMessage.cloneNode(true);
+        pinnedMessage.classList.add('pinned-message'); // 強調表示用のクラスを追加
+
+        // ★修正: 複製したピン留め用チャットにアイコンを追加
+        const authorContainer = pinnedMessage.querySelector('.author-name-container');
+        if (authorContainer && !authorContainer.querySelector('.pin-icon')) {
+            const pinIcon = document.createElement('span');
+            pinIcon.className = 'pin-icon';
+            pinIcon.textContent = '📌';
+            authorContainer.insertAdjacentElement('afterbegin', pinIcon);
+        }
+
+        pinnedChatContainer.insertAdjacentElement('afterbegin', pinnedMessage);
+        togglePinIcon(messageId, true); // 元のチャットにもアイコンを追加
+    });
+
+    // SCストックエリアでのクリックを監視 (ピン留め機能)
+    superchatStockContainer.addEventListener('click', (e) => {
+        const scStockMessage = e.target.closest('.sc-stock-message');
+        if (!scStockMessage) return;
+
+        const messageId = scStockMessage.dataset.id;
+
+        // すでにピン留めされていないか確認
+        if (pinnedChatContainer.querySelector(`[data-id="${messageId}"]`)) {
+            showMessageBox('通知', 'このメッセージはすでにピン留めされています。');
+            return;
+        }
+
+        // ピン留めメッセージが最大数に達していたら、一番古いものを削除
+        if (pinnedChatContainer.children.length >= MAX_PINNED_CHATS) {
+            pinnedChatContainer.removeChild(pinnedChatContainer.lastElementChild);
+        }
+
+        // ストックメッセージから情報を抽出
+        const authorName = scStockMessage.querySelector('.sc-author')?.textContent || '不明なユーザー';
+        const amount = scStockMessage.querySelector('.sc-amount')?.textContent || '';
+        const comment = scStockMessage.querySelector('.sc-comment')?.textContent || '（コメントなし）';
+
+        // ピン留め用のHTMLを .chat-message 形式で再構築
+        const messageText = `<span class="font-bold text-lg text-yellow-300 mr-2">${amount}</span><br>${comment}`;
+        
+        // .chat-message のクラスとスタイルを適用
+        let classes = ['chat-message', 'is-superchat', 'pinned-message'];
+        if (chatDisplayModeInput.value === 'multi') {
+            classes.push('multi-line-mode');
+        }
+
+        // ピン留め用のHTMLを作成
+        const pinnedMessageHtml = `
+            <div class="${classes.join(' ')}" data-id="${messageId}">
+                <div class="message-content-wrapper">
+                    <div class="author-name-container">
+                        <span class="pin-icon">📌</span>
+                        <span class="author-name">${authorName.replace('📌','')}</span>
+                    </div>
+                    <span class="message-text">${messageText}</span>
+                </div>
+            </div>
+        `;
+
+        // HTMLをDOM要素に変換して追加
+        const template = document.createElement('template');
+        template.innerHTML = pinnedMessageHtml.trim();
+        const pinnedMessageNode = template.content.firstChild;
+        
+        // ピン留めコンテナに追加
+        pinnedChatContainer.insertAdjacentElement('afterbegin', pinnedMessageNode);
+        togglePinIcon(messageId, true); // 元のチャットにもアイコンを追加
+    });
+
+    // ピン留めコンテナ内でのクリックを監視 (ピン留め解除)
+    pinnedChatContainer.addEventListener('click', (e) => {
+        const pinnedMessage = e.target.closest('.pinned-message');
+        if (pinnedMessage) {
+            togglePinIcon(pinnedMessage.dataset.id, false); // 元のチャットからアイコンを削除
+            
+            // ★修正: アニメーションを追加
+            pinnedMessage.classList.add('hiding');
+            pinnedMessage.addEventListener('animationend', () => {
+                pinnedMessage.remove();
+            }, { once: true });
+        }
+    });
+
+</script>
+</body>
+</html>
