@@ -1730,6 +1730,16 @@
         const pinnedMessage = chatMessage.cloneNode(true);
         pinnedMessage.classList.add('pinned-message'); // 強調表示用のクラスを追加
 
+        // ★新規: ピン留めされたSCからは金額を削除
+        if (pinnedMessage.classList.contains('is-superchat')) {
+            const messageTextElement = pinnedMessage.querySelector('.message-text');
+            if (messageTextElement) {
+                const parts = messageTextElement.innerHTML.split('<br>');
+                // <br>の後ろにあるコメント部分だけを残す
+                if (parts.length > 1) messageTextElement.innerHTML = parts[1];
+            }
+        }
+
         // ★修正: 複製したピン留め用チャットにアイコンを追加
         const authorContainer = pinnedMessage.querySelector('.author-name-container');
         if (authorContainer && !authorContainer.querySelector('.pin-icon')) {
@@ -1766,8 +1776,8 @@
         const amount = scStockMessage.querySelector('.sc-amount')?.textContent || '';
         const comment = scStockMessage.querySelector('.sc-comment')?.textContent || '（コメントなし）';
 
-        // ピン留め用のHTMLを .chat-message 形式で再構築
-        const messageText = `<span class="font-bold text-lg text-yellow-300 mr-2">${amount}</span><br>${comment}`;
+        // ★修正: ピン留め用HTMLでは金額を削除し、コメントのみにする
+        const messageText = comment;
         
         // .chat-message のクラスとスタイルを適用
         let classes = ['chat-message', 'is-superchat', 'pinned-message'];
