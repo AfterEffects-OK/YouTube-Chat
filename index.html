@@ -1677,7 +1677,10 @@
                 content.style.maxHeight = null;
                 content.style.padding = "0 1rem";
             } else {
-                content.style.maxHeight = content.scrollHeight + 32 + "px"; // 32pxはpy-4の分
+                // ★修正: scrollHeightの代わりに、より正確なgetBoundingClientRect().heightを使用
+                const innerDiv = content.querySelector('div');
+                const contentHeight = innerDiv ? innerDiv.getBoundingClientRect().height : 0;
+                content.style.maxHeight = contentHeight + 32 + "px"; // 32pxはpy-4のパディング分
                 content.style.padding = "1rem";
             } 
         });
