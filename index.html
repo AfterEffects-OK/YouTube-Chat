@@ -547,6 +547,11 @@
             padding: 0 1rem;
         }
 
+        /* ★新規: アコーディオンが完全に開いた後のスタイル */
+        .accordion-content.open {
+            max-height: none;
+        }
+
     </style>
 </head>
 <body class="bg-gray-800 text-white">
@@ -633,14 +638,14 @@
                         <div id="indent-settings-group" class="border-t border-gray-600 pt-3">
                              <!-- 名前（ユーザー名）の左インデント調整設定 -->
                             <div class="flex flex-col gap-2 mb-3" id="author-indent-setting">
-                                <label class="w-full text-sm font-medium text-gray-300 mb-1">名前（ユーザー名）の左インデント調整 (2行時) <span id="author-indent-display" class="font-mono text-blue-300">0.0rem</span></label>
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">名前のインデント (2行時) <span id="author-indent-display" class="font-mono text-blue-300">0.0rem</span></label>
                                 <!-- スライダー: min=0rem, max=20rem, step=0.1rem -->
                                 <input type="range" id="author-indent-range" min="0" max="20.0" step="0.1" value="0.0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
 
                             <!-- 本文（メッセージ）の左インデント調整設定 -->
                             <div class="flex flex-col gap-2" id="message-indent-setting">
-                                <label class="w-full text-sm font-medium text-gray-300 mb-1">本文（メッセージ）の左インデント調整 (2行時) <span id="message-indent-display" class="font-mono text-blue-300">0.0rem</span></label>
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">本文のインデント (2行時) <span id="message-indent-display" class="font-mono text-blue-300">0.0rem</span></label>
                                 <!-- スライダー: min=0rem, max=20rem, step=0.1rem -->
                                 <input type="range" id="message-indent-range" min="0" max="20.0" step="0.1" value="0.0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
@@ -771,7 +776,6 @@
                                         <input type="text" id="pinned-author-font-size" class="p-2 border-y border-gray-600 bg-gray-800 text-white text-center w-full" value="1.0rem" readonly>
                                         <button id="pinned-author-size-up" class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-1 px-3 rounded-r-lg transition duration-150 shadow-md">+</button>
                                     </div>
-                                    <input type="color" id="pinned-author-color" class="h-10 w-12 cursor-pointer bg-gray-800 rounded-lg border border-gray-600 shadow-md flex-shrink-0" value="#fec834">
                                 </div>
                             </div>
                             <!-- ピン留めチャット本文 サイズ/色設定 -->
@@ -783,7 +787,6 @@
                                         <input type="text" id="pinned-message-font-size" class="p-2 border-y border-gray-600 bg-gray-800 text-white text-center w-full" value="1.0rem" readonly>
                                         <button id="pinned-message-size-up" class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-1 px-3 rounded-r-lg transition duration-150 shadow-md">+</button>
                                     </div>
-                                    <input type="color" id="pinned-message-color" class="h-10 w-12 cursor-pointer bg-gray-800 rounded-lg border border-gray-600 shadow-md flex-shrink-0" value="#e2e8f0">
                                 </div>
                             </div>
                         </div>
@@ -806,7 +809,7 @@
                     <!-- ★修正: クリアボタンを2つに分割して横並びにする -->
                     <div class="flex gap-2 w-full">
                         <button id="reset-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-1/2 text-base shadow-xl">全クリア</button>
-                        <button id="clear-pinned-button" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-1/2 text-base shadow-xl">ピンのみクリア</button>
+                        <button id="clear-pinned-button" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 w-1/2 text-base shadow-xl">ピンのみ<br>クリア</button>
                     </div>
                 </div>
             </div>
@@ -893,8 +896,6 @@
     const pinnedMessageSizeInput = document.getElementById('pinned-message-font-size');
     const pinnedMessageSizeUpButton = document.getElementById('pinned-message-size-up');
     const pinnedMessageSizeDownButton = document.getElementById('pinned-message-size-down');
-    const pinnedAuthorColorInput = document.getElementById('pinned-author-color');
-    const pinnedMessageColorInput = document.getElementById('pinned-message-color');
     
     // フォントサイズ/カラー制御要素
     const authorSizeInput = document.getElementById('author-font-size');
@@ -1001,9 +1002,7 @@
             pinnedAuthorFont: pinnedAuthorFontInput.value,
             pinnedMessageFont: pinnedMessageFontInput.value,
             pinnedAuthorSize: pinnedAuthorSizeInput.value,
-            pinnedAuthorColor: pinnedAuthorColorInput.value,
             pinnedMessageSize: pinnedMessageSizeInput.value,
-            pinnedMessageColor: pinnedMessageColorInput.value,
         };
     }
 
@@ -1068,9 +1067,6 @@
         const savedPinnedMessageSizeRem = parseFloat(data.pinnedMessageSize);
         pinnedMessageSizeInput.value = (savedPinnedMessageSizeRem || 1.0).toFixed(1) + 'rem';
         pinnedMessageFontSizeRem = savedPinnedMessageSizeRem || 1.0;
-
-        pinnedAuthorColorInput.value = data.pinnedAuthorColor || '#fec834';
-        pinnedMessageColorInput.value = data.pinnedMessageColor || '#e2e8f0';
     }
 
     // デザイン設定をlocalStorageから読み込み、UIに適用する関数
@@ -1486,13 +1482,9 @@
         // ★修正: ピン留めエリアのフォントサイズと色をCSSカスタムプロパティに設定
         const pinnedAuthorSize = pinnedAuthorSizeInput.value.trim();
         document.documentElement.style.setProperty('--pinned-author-font-size', pinnedAuthorSize);
-        const pinnedAuthorColor = pinnedAuthorColorInput.value.trim();
-        document.documentElement.style.setProperty('--pinned-author-color-override', pinnedAuthorColor);
 
         const pinnedMessageSize = pinnedMessageSizeInput.value.trim();
         document.documentElement.style.setProperty('--pinned-message-font-size', pinnedMessageSize);
-        const pinnedMessageColor = pinnedMessageColorInput.value.trim();
-        document.documentElement.style.setProperty('--pinned-message-color-override', pinnedMessageColor);
 
         
         // 2行表示時（初期値）のみインデント設定グループを表示/非表示
@@ -1548,7 +1540,7 @@
     [globalFontInput, authorFontInput, messageFontInput, pinnedAuthorFontInput, pinnedMessageFontInput].forEach(input => {
         input.addEventListener('change', () => { initializeLayoutSettings(); generateDummyMessage('normal'); });
     });
-    [authorColorInput, messageColorInput, backgroundImageInput, pinnedAuthorColorInput, pinnedMessageColorInput].forEach(input => {
+    [authorColorInput, messageColorInput, backgroundImageInput].forEach(input => {
         input.addEventListener('input', (e) => {
             // inputイベントはリアルタイムでCSS変数を更新
             initializeLayoutSettings();
@@ -1677,6 +1669,11 @@
                 content.style.maxHeight = null;
                 content.style.padding = "0 1rem";
             } else {
+                // ★修正: 高さを計算する前に、内部要素の表示状態を更新する
+                const indentGroup = content.querySelector('#indent-settings-group');
+                if (indentGroup) {
+                    indentGroup.classList.toggle('hidden', chatDisplayModeInput.value === 'single');
+                }
                 // ★修正: scrollHeightの代わりに、より正確なgetBoundingClientRect().heightを使用
                 const innerDiv = content.querySelector('div');
                 const contentHeight = innerDiv ? innerDiv.getBoundingClientRect().height : 0;
