@@ -564,7 +564,7 @@
             <div>
                 <!-- 1. API/動画設定セクション -->
                 <div class="w-full p-4 bg-gray-800 rounded-lg shadow-xl">
-                    <h1 class="text-2xl font-extrabold mb-1 text-blue-400 border-b border-blue-400/50 pb-2">ライブチャット設定</h1>
+                    <h1 class="text-2xl font-extrabold mb-1 text-blue-400 border-b border-blue-400/50 pb-2 whitespace-nowrap">ライブチャット設定</h1>
                     <p class="text-sm text-gray-400 mb-4">APIキーと動画IDを入力</p>
                     
                     <div class="flex flex-col gap-3 w-full"> 
@@ -588,7 +588,8 @@
                             <button class="accordion-header"><h3>背景画像</h3><span class="icon"></span></button>
                             <div class="accordion-content">
                                 <div class="py-4">
-                                    <input type="text" id="background-image-url" placeholder="背景画像URL (GIF/PNG/JPG) (オプション)" class="p-3 border border-gray-600 rounded-lg bg-gray-700 text-white w-full focus:ring-2 focus:ring-blue-500" value="">
+                                    <input type="text" id="background-image-url" placeholder="背景画像URL" class="p-3 border border-gray-600 rounded-lg bg-gray-700 text-white w-full focus:ring-2 focus:ring-blue-500" value="">
+                                    <p class="text-xs text-gray-400 mt-1">使用可能：GIF/PNG/JPG</p>
                                 </div>
                             </div>
                         </div>
@@ -601,7 +602,7 @@
                         <!-- 1行あたりの文字数設定 -->
                         <div class="flex flex-col gap-2 mb-3">
                             <label class="w-full text-sm font-medium text-gray-300 mb-1">
-                                チャット本文の最大文字数 (1行): <span id="char-limit-display" class="font-mono text-blue-300">80文字</span>
+                                チャット本文の最大文字数 (1行あたり): <span id="char-limit-display" class="font-mono text-blue-300">80文字</span>
                             </label>
                             <!-- スライダー: min=20文字, max=120文字, step=1文字 -->
                             <input type="range" id="char-limit-range" min="20" max="120" step="1" value="80" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -704,7 +705,7 @@
 
                             <!-- ★新規: ピン留めユーザー名フォント -->
                             <div class="flex flex-col gap-2 border-t border-gray-600 pt-3 mt-3">
-                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めユーザー名フォント:</label>
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めユーザー名ﾌｫﾝﾄ:</label>
                                 <select id="pinned-author-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
                                     <option value="">通常エリアに従う</option>
                                     <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
@@ -715,7 +716,7 @@
 
                             <!-- ★新規: ピン留めチャット本文フォント -->
                             <div class="flex flex-col gap-2">
-                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留めチャット本文フォント:</label>
+                                <label class="w-full text-sm font-medium text-gray-300 mb-1">ピン留め本文フォント:</label>
                                 <select id="pinned-message-font-family" class="p-2 border border-gray-500 rounded-md bg-gray-600 text-white w-full cursor-pointer focus:ring-1 focus:ring-blue-500">
                                     <option value="">通常エリアに従う</option>
                                     <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
@@ -829,7 +830,7 @@
             <!-- スーパーチャットストックエリア (右側) -->
             <div id="superchat-stock-container">
                 <div class="p-4 border-b border-yellow-500/50">
-                    <h2 class="text-xl font-bold text-yellow-400">スーパーチャットストック</h2>
+                    <h2 class="text-xl font-bold text-yellow-400 whitespace-nowrap">スーパーチャットストック</h2>
                 </div>
                 <!-- SCメッセージがここに挿入されます (最新のメッセージが上) -->
             </div>
@@ -1285,8 +1286,10 @@
     function displaySuperChatInStock(author, amount, comment, id) {
         const scStockHtml = `
             <div class="sc-stock-message" data-id="stock-${id}" style="cursor: pointer;">
-                <div class="flex items-center justify-between mb-1 sc-author-container">
-                    <span class="sc-author">${author.displayName}</span>
+                <div class="flex items-center justify-between mb-1">
+                    <div class="sc-author-container flex items-center">
+                        <span class="sc-author">${author.displayName}</span>
+                    </div>
                     <span class="sc-amount">${amount}</span>
                 </div>
                 ${comment ? `<div class="sc-comment">${comment}</div>` : ''}
@@ -1576,7 +1579,7 @@
         chatContainer.innerHTML = '';
         // SCストックエリアのヘッダー以外をクリア
         superchatStockContainer.innerHTML = `<div class="p-4 border-b border-yellow-500/50">
-                <h2 class="text-xl font-bold text-yellow-400">スーパーチャットストック</h2>
+                <h2 class="text-xl font-bold text-yellow-400 whitespace-nowrap">スーパーチャットストック</h2>
             </div>`;
         // ★修正: ピン留めエリアもクリア
         pinnedChatContainer.innerHTML = '';
@@ -1639,13 +1642,13 @@
             chatContainer.innerHTML = '';
             // SCストックエリアのヘッダー以外をクリア
             superchatStockContainer.innerHTML = `<div class="p-4 border-b border-yellow-500/50">
-                <h2 class="text-xl font-bold text-yellow-400">スーパーチャットストック</h2>
+                <h2 class="text-xl font-bold text-yellow-400 whitespace-nowrap">スーパーチャットストック</h2>
             </div>`;
-            startButton.textContent = 'チャット取得中 (クリックで停止)';
+            startButton.textContent = '取得中 (クリックで停止)';
             startButton.disabled = false;
             fetchChatMessages();
         } else {
-            startButton.textContent = '取得開始';
+            startButton.textContent = 'チャット取得開始';
             startButton.disabled = false;
         }
     });
@@ -1771,37 +1774,41 @@
             pinnedChatContainer.removeChild(pinnedChatContainer.lastElementChild);
         }
 
-        // ストックメッセージから情報を抽出
-        const authorName = scStockMessage.querySelector('.sc-author')?.textContent || '不明なユーザー';
-        const amount = scStockMessage.querySelector('.sc-amount')?.textContent || '';
-        const comment = scStockMessage.querySelector('.sc-comment')?.textContent || '（コメントなし）';
-
-        // ★修正: ピン留め用HTMLでは金額を削除し、コメントのみにする
-        const messageText = comment;
+        // ★修正: HTMLを再構築せず、要素を複製して変換する
+        const pinnedMessageNode = scStockMessage.cloneNode(true);
         
-        // .chat-message のクラスとスタイルを適用
-        let classes = ['chat-message', 'is-superchat', 'pinned-message'];
+        // IDとクラスをピン留め用に変更
+        pinnedMessageNode.dataset.id = messageId;
+        pinnedMessageNode.classList.remove('sc-stock-message');
+        pinnedMessageNode.classList.add('chat-message', 'is-superchat', 'pinned-message');
         if (chatDisplayModeInput.value === 'multi') {
-            classes.push('multi-line-mode');
+            pinnedMessageNode.classList.add('multi-line-mode');
         }
 
-        // ピン留め用のHTMLを作成
-        const pinnedMessageHtml = `
-            <div class="${classes.join(' ')}" data-id="${messageId}">
-                <div class="message-content-wrapper">
-                    <div class="author-name-container">
-                        <span class="pin-icon">📌</span>
-                        <span class="author-name">${authorName.replace('📌','')}</span>
-                    </div>
-                    <span class="message-text">${messageText}</span>
-                </div>
-            </div>
-        `;
+        // SCストックの構造を通常のチャットメッセージ構造に変換
+        const oldAuthorContainer = pinnedMessageNode.querySelector('.sc-author-container');
+        const authorName = pinnedMessageNode.querySelector('.sc-author');
+        const comment = pinnedMessageNode.querySelector('.sc-comment');
 
-        // HTMLをDOM要素に変換して追加
-        const template = document.createElement('template');
-        template.innerHTML = pinnedMessageHtml.trim();
-        const pinnedMessageNode = template.content.firstChild;
+        // 新しいmessage-content-wrapperを作成して入れ替える
+        const newWrapper = document.createElement('div');
+        newWrapper.className = 'message-content-wrapper';
+
+        // 新しいauthor-name-containerを作成
+        const newAuthorContainer = document.createElement('div');
+        newAuthorContainer.className = 'author-name-container';
+        newAuthorContainer.appendChild(authorName); // ユーザー名を移動
+
+        // 新しいmessage-textを作成
+        const newComment = document.createElement('span');
+        newComment.className = 'message-text';
+        newComment.textContent = comment ? comment.textContent : '（コメントなし）';
+
+        newWrapper.appendChild(newAuthorContainer);
+        newWrapper.appendChild(newComment);
+        
+        pinnedMessageNode.innerHTML = ''; // 古いノードの中身を全削除
+        pinnedMessageNode.appendChild(newWrapper);
         
         // ピン留めコンテナに追加
         pinnedChatContainer.insertAdjacentElement('afterbegin', pinnedMessageNode);
