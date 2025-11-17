@@ -240,8 +240,8 @@
         /* 背景画像が設定されたメッセージのスタイル */
         .chat-message[data-bg-image="true"]::before {
             background-image: var(--bg-image-url);
-            opacity: 0.7; 
-            background-color: #242424; 
+            opacity: 0.7;
+            opacity: 0.7;
             background-blend-mode: multiply;
         }
 
@@ -345,7 +345,7 @@
         
         /* メンバーシップ */
         .is-member::before {
-             background-color: #007799 !important;
+             background-color: transparent !important;
         }
         .is-member .author-name {
             color: #00e5ff !important; 
@@ -360,9 +360,8 @@
         /* ★修正: スーパーチャット (メインエリアにも表示するようにスタイルを復活) */
         .is-superchat::before {
             /* 濃い赤/紫系のグラデーションをシミュレート */
-            background: linear-gradient(135deg, #a020f0 0%, #ff4500 100%); 
+            background: transparent; 
             opacity: 0.8 !important; /* 背景画像を適用している場合でも目立たせる */
-            background-color: #ff4500 !important;
             border-left: 6px solid #ffd700; /* 金色のボーダー */
         }
         .is-superchat .author-name {
@@ -422,9 +421,8 @@
             /* ★修正: position:fixed をやめて通常のFlexアイテムにする */
             flex-shrink: 0; /* 高さが縮まないようにする */
             height: var(--pinned-chat-height);
-            background-color: rgba(10, 10, 10, 1); /* 少し透明な黒 */
+            background-color: transparent; /* ★修正: 背景を透明に */
             /*backdrop-filter: blur(8px); /* 背景をぼかす */
-            border-top: 2px solid #4a5568;
             padding: 0.75rem;
             display: flex; 
             flex-direction: column-reverse; /* 新しいピンが下から上に積まれる */
