@@ -115,7 +115,6 @@
             padding: 1rem;
             padding-bottom: 3rem; 
             border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
@@ -421,6 +420,7 @@
             flex-shrink: 0; /* 高さが縮まないようにする */
             height: var(--pinned-chat-height);
             background-color: transparent; /* ★修正: 背景を透明に */
+            border-top: 2px solid #ffaa00; /* ★変更: SCストックエリアの区切り線と統一 */
             /*backdrop-filter: blur(8px); /* 背景をぼかす */
             padding: 0.75rem;
             display: flex; 
