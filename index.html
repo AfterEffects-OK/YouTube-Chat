@@ -230,17 +230,16 @@
 
         /* デフォルトの背景色（画像がない場合） */
         .chat-message:nth-child(even)::before {
-            background-color: transparent; 
+            background-color: #2a2a2a; 
         }
         
         .chat-message:nth-child(odd)::before {
-            background-color: transparent; 
+            background-color: #242424; 
         }
 
         /* 背景画像が設定されたメッセージのスタイル */
         .chat-message[data-bg-image="true"]::before {
             background-image: var(--bg-image-url);
-            opacity: 0.7;
             opacity: 0.7;
             background-blend-mode: multiply;
         }
@@ -345,7 +344,7 @@
         
         /* メンバーシップ */
         .is-member::before {
-             background-color: transparent !important;
+             background-color: #007799 !important;
         }
         .is-member .author-name {
             color: #00e5ff !important; 
@@ -360,7 +359,7 @@
         /* ★修正: スーパーチャット (メインエリアにも表示するようにスタイルを復活) */
         .is-superchat::before {
             /* 濃い赤/紫系のグラデーションをシミュレート */
-            background: transparent; 
+            background: linear-gradient(135deg, #a020f0 0%, #ff4500 100%); 
             opacity: 0.8 !important; /* 背景画像を適用している場合でも目立たせる */
             border-left: 6px solid #ffd700; /* 金色のボーダー */
         }
