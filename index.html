@@ -111,7 +111,7 @@
             align-items: flex-start; /* ★追加: メッセージを左揃えにし、幅を内容に合わせる */
             min-height: 50vh; /* 狭い画面での最低高さを確保 */
             overflow-y: auto; /* ★修正: スクロールを有効に戻す */
-            background-color: #1a1a1a; /* ダークな背景色 */
+            background-color: transparent; /* ダークな背景色 */
             padding: 1rem;
             padding-bottom: 3rem; 
             border-radius: 8px;
@@ -230,11 +230,11 @@
 
         /* デフォルトの背景色（画像がない場合） */
         .chat-message:nth-child(even)::before {
-            background-color: #2a2a2a; 
+            background-color: transparent; 
         }
         
         .chat-message:nth-child(odd)::before {
-            background-color: #242424; 
+            background-color: transparent; 
         }
 
         /* 背景画像が設定されたメッセージのスタイル */
@@ -422,8 +422,8 @@
             /* ★修正: position:fixed をやめて通常のFlexアイテムにする */
             flex-shrink: 0; /* 高さが縮まないようにする */
             height: var(--pinned-chat-height);
-            background-color: rgba(10, 10, 10, 0.85); /* 少し透明な黒 */
-            backdrop-filter: blur(8px); /* 背景をぼかす */
+            background-color: rgba(10, 10, 10, 1); /* 少し透明な黒 */
+            /*backdrop-filter: blur(8px); /* 背景をぼかす */
             border-top: 2px solid #4a5568;
             padding: 0.75rem;
             display: flex; 
